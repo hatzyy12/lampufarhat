@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Los Santos Traffic Simulator - GTA V Theme</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Orbitron / Montserrat / Dynamic fonts for GTA feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #0b0f19;
+            color: #ffffff;
+            user-select: none;
+            overflow-x: hidden;
+        }
+        .gta-font {
+            font-family: 'Chakra Petch', sans-serif;
+            letter-spacing: 1px;
+        }
+        .gta-border {
+            border: 2px solid rgba(234, 179, 8, 0.4);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(234, 179, 8, 0.1);
+        }
+        .gta-glass {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+        }
+        /* GTA 5 Radar/Mini-map style scanline overlay */
+        .scanline {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0, 0, 0, 0.3) 50%,
+                rgba(0, 0, 0, 0.3)
+            );
+            background-size: 100% 4px;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #eab308;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between select-none relative bg-slate-950 text-white">
+
+    <!-- Top GTA V HUD Bar -->
+    <header class="w-full bg-slate-900/90 border-b-2 border-yellow-500 px-4 py-3 flex flex-wrap justify-between items-center z-20 shadow-xl">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-yellow-500 text-slate-950 font-black rounded flex items-center justify-center text-2xl shadow-md font-mono">
+                5
+            </div>
+            <div>
+                <h1 class="gta-font text-xl md:text-2xl font-bold tracking-wider text-yellow-400">LOS SANTOS <span class="text-white">TRAFFIC CONTROL</span></h1>
+                <p class="text-xs text-slate-400 uppercase tracking-widest flex items-center">
+                    <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+                    SIMULATOR PEREMPATAN PADAT
+                </p>
+            </div>
+        </div>
+
+        <!-- HUD Statistics & Clock -->
+        <div class="flex items-center space-x-6 mt-2 sm:mt-0">
+            <!-- Wanted Level Indicator -->
+            <div class="flex flex-col items-end">
+                <span class="text-[10px] text-yellow-400/80 font-bold tracking-widest uppercase">Wanted Level</span>
+                <div class="flex space-x-1 text-xl" id="wanted-stars">
+                    <i class="fa-solid fa-star text-slate-700"></i>
+                    <i class="fa-solid fa-star text-slate-700"></i>
+                    <i class="fa-solid fa-star text-slate-700"></i>
+                    <i class="fa-solid fa-star text-slate-700"></i>
+                    <i class="fa-solid fa-star text-slate-700"></i>
+                </div>
+            </div>
+
+            <!-- In-Game Time & Stats -->
+            <div class="border-l border-slate-700 pl-4 hidden md:block">
+                <div class="text-right">
+                    <span id="game-time" class="gta-font text-lg text-yellow-400 font-bold">12:00</span>
+                    <span class="text-xs text-slate-400 block" id="traffic-density-status">Kepadatan: Tinggi</span>
+                </div>
+            </div>
+
+            <!-- Vehicle Counter -->
+            <div class="bg-slate-800/80 px-3 py-1.5 rounded border border-slate-700 text-center min-w-[90px]">
+                <div class="text-[10px] text-slate-400 uppercase font-bold">Kendaraan</div>
+                <div id="vehicle-count" class="gta-font text-lg text-cyan-400 font-bold">0</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-4 gap-4 relative z-10">
+
+        <!-- Left Controls: Traffic Light Controller -->
+        <section class="lg:col-span-1 flex flex-col gap-4">
+            <div class="gta-glass gta-border rounded-lg p-4 flex flex-col gap-4">
+                <h2 class="gta-font text-lg text-yellow-400 border-b border-yellow-500/30 pb-2 flex items-center justify-between">
+                    <span><i class="fa-solid fa-traffic-light mr-2"></i> KONTROL SINYAL</span>
+                    <span id="mode-badge" class="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/50">OTOMATIS</span>
+                </h2>
+
+                <!-- Mode Switcher -->
+                <div class="grid grid-cols-2 gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                    <button id="btn-mode-auto" onclick="setControlMode('auto')" class="py-2 text-xs font-bold rounded bg-yellow-500 text-slate-950 transition-all shadow">
+                        <i class="fa-solid fa-rotate mr-1"></i> OTOMATIS
+                    </button>
+                    <button id="btn-mode-manual" onclick="setControlMode('manual')" class="py-2 text-xs font-bold rounded text-slate-400 hover:text-white transition-all">
+                        <i class="fa-solid fa-hand mr-1"></i> MANUAL
+                    </button>
+                </div>
+
+                <!-- Timer Indicator for Auto Mode -->
+                <div id="timer-display-box" class="bg-slate-900/90 rounded border border-slate-800 p-3 text-center">
+                    <div class="text-xs text-slate-400 font-semibold mb-1">FASE AKTIF SEKARANG</div>
+                    <div id="current-phase-text" class="gta-font text-cyan-400 font-bold text-sm tracking-wider uppercase">UTARA - SELATAN (HIJAU)</div>
+                    <div class="w-full bg-slate-800 rounded-full h-2 mt-2 overflow-hidden">
+                        <div id="phase-progress" class="bg-yellow-500 h-2 transition-all duration-300" style="width: 100%;"></div>
+                    </div>
+                </div>
+
+                <!-- Manual Phase Controls -->
+                <div id="manual-controls" class="space-y-3 opacity-50 pointer-events-none transition-all">
+                    <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">Lajur Utara - Selatan</div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setManualSignal('NS', 'red')" class="py-1.5 bg-red-950/80 hover:bg-red-900 text-red-400 border border-red-700/50 rounded font-bold text-xs flex items-center justify-center">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5 shadow-[0_0_8px_#ef4444]"></span> MERAH
+                        </button>
+                        <button onclick="setManualSignal('NS', 'yellow')" class="py-1.5 bg-yellow-950/80 hover:bg-yellow-900 text-yellow-400 border border-yellow-700/50 rounded font-bold text-xs flex items-center justify-center">
+                            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 mr-1.5 shadow-[0_0_8px_#eab308]"></span> KUNING
+                        </button>
+                        <button onclick="setManualSignal('NS', 'green')" class="py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-700/50 rounded font-bold text-xs flex items-center justify-center">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1.5 shadow-[0_0_8px_#10b981]"></span> HIJAU
+                        </button>
+                    </div>
+
+                    <div class="text-xs text-slate-400 font-bold uppercase tracking-wider pt-2">Lajur Timur - Barat</div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setManualSignal('EW', 'red')" class="py-1.5 bg-red-950/80 hover:bg-red-900 text-red-400 border border-red-700/50 rounded font-bold text-xs flex items-center justify-center">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5 shadow-[0_0_8px_#ef4444]"></span> MERAH
+                        </button>
+                        <button onclick="setManualSignal('EW', 'yellow')" class="py-1.5 bg-yellow-950/80 hover:bg-yellow-900 text-yellow-400 border border-yellow-700/50 rounded font-bold text-xs flex items-center justify-center">
+                            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 mr-1.5 shadow-[0_0_8px_#eab308]"></span> KUNING
+                        </button>
+                        <button onclick="setManualSignal('EW', 'green')" class="py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-700/50 rounded font-bold text-xs flex items-center justify-center">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1.5 shadow-[0_0_8px_#10b981]"></span> HIJAU
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chaos / GTA Emergency Button -->
+                <div class="pt-2">
+                    <button id="btn-chaos" onclick="toggleChaosMode()" class="w-full py-3 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black rounded-lg border border-red-400 shadow-lg tracking-wider text-xs uppercase flex items-center justify-center transition-transform active:scale-95">
+                        <i class="fa-solid fa-triangle-exclamation text-base mr-2 animate-bounce"></i> ACCELERATE CHAOS / WANTED MODE
+                    </button>
+                </div>
+            </div>
+
+            <!-- Radio Player Widget (GTA V Style) -->
+            <div class="gta-glass gta-border rounded-lg p-3 hidden sm:flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-full bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-sm">
+                        <i class="fa-solid fa-radio"></i>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-bold">LOS SANTOS RADIO</div>
+                        <div id="radio-station" class="text-xs font-bold text-yellow-400">NON-STOP-POP FM</div>
+                    </div>
+                </div>
+                <button onclick="nextRadioStation()" class="text-xs bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded text-slate-300 border border-slate-700">
+                    <i class="fa-solid fa-forward"></i> Ganti
+                </button>
+            </div>
+        </section>
+
+        <!-- Center: Interactive 2D Canvas Viewport -->
+        <section class="lg:col-span-2 flex flex-col items-center">
+            <div class="relative w-full aspect-square max-w-[620px] rounded-lg overflow-hidden border-2 border-slate-700 shadow-2xl bg-slate-900">
+                <canvas id="trafficCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+                <!-- Scanline effect for radar vibe -->
+                <div class="absolute inset-0 scanline pointer-events-none opacity-40"></div>
+
+                <!-- Overlay Banner for Wanted Mode Active -->
+                <div id="chaos-banner" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-4 py-1.5 rounded-full border-2 border-yellow-400 font-bold text-xs tracking-widest uppercase shadow-2xl animate-pulse flex items-center space-x-2 z-30">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>CHAOS MODE ACTIVE - POLICE ON PURSUIT</span>
+                </div>
+
+                <!-- On-Canvas Controls Floating Badge -->
+                <div class="absolute bottom-3 left-3 bg-slate-950/80 px-3 py-1.5 rounded border border-slate-800 text-[11px] text-slate-300 flex items-center space-x-2">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                    <span>Klik pada peta untuk spawn Mobil Polisi Darurat</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Controls: Simulation Parameters & Controls -->
+        <section class="lg:col-span-1 flex flex-col gap-4">
+            <div class="gta-glass gta-border rounded-lg p-4 flex flex-col gap-4">
+                <h2 class="gta-font text-lg text-yellow-400 border-b border-yellow-500/30 pb-2">
+                    <i class="fa-solid fa-sliders mr-2"></i> PARAMETER LALU LINTAS
+                </h2>
+
+                <!-- Spawn Rate Slider -->
+                <div class="space-y-1">
+                    <div class="flex justify-between text-xs font-semibold">
+                        <span class="text-slate-300">Intensitas Kendaraan</span>
+                        <span id="spawn-rate-val" class="text-yellow-400 font-mono">Padat</span>
+                    </div>
+                    <input type="range" id="slider-spawn" min="1" max="5" value="4" class="w-full accent-yellow-500 bg-slate-800 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-500">
+                        <span>Lengang</span>
+                        <span>Macet Total</span>
+                    </div>
+                </div>
+
+                <!-- Green Light Timer Slider -->
+                <div class="space-y-1">
+                    <div class="flex justify-between text-xs font-semibold">
+                        <span class="text-slate-300">Durasi Lampu Hijau</span>
+                        <span id="timer-val" class="text-yellow-400 font-mono">6s</span>
+                    </div>
+                    <input type="range" id="slider-timer" min="3" max="15" value="6" class="w-full accent-yellow-500 bg-slate-800 cursor-pointer">
+                </div>
+
+                <!-- Vehicle Speed Slider -->
+                <div class="space-y-1">
+                    <div class="flex justify-between text-xs font-semibold">
+                        <span class="text-slate-300">Kecepatan Rata-Rata</span>
+                        <span id="speed-val" class="text-yellow-400 font-mono">Normal</span>
+                    </div>
+                    <input type="range" id="slider-speed" min="1" max="3" step="0.5" value="1.5" class="w-full accent-yellow-500 bg-slate-800 cursor-pointer">
+                </div>
+
+                <!-- Action Triggers -->
+                <div class="space-y-2 pt-2 border-t border-slate-800">
+                    <button onclick="spawnEmergencyVehicle()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/40 rounded font-bold text-xs uppercase transition-all flex items-center justify-center">
+                        <i class="fa-solid fa-truck-medical mr-2"></i> Spawn Ambulans / Polisi
+                    </button>
+
+                    <button onclick="clearAllVehicles()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded font-bold text-xs uppercase transition-all flex items-center justify-center">
+                        <i class="fa-solid fa-trash-can mr-2"></i> Bersihkan Lalu Lintas
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mini Legend Box -->
+            <div class="gta-glass gta-border rounded-lg p-3 text-xs space-y-2">
+                <div class="font-bold text-yellow-400 uppercase tracking-wider text-[11px]">Legenda Tipe Kendaraan</div>
+                <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
+                    <div class="flex items-center"><span class="w-3 h-3 bg-yellow-400 rounded-sm mr-2"></span> Taksi Los Santos</div>
+                    <div class="flex items-center"><span class="w-3 h-3 bg-blue-600 rounded-sm mr-2"></span> Muscle Car</div>
+                    <div class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-sm mr-2"></span> Sports Supercar</div>
+                    <div class="flex items-center"><span class="w-3 h-3 bg-emerald-600 rounded-sm mr-2"></span> Truk Kargo</div>
+                    <div class="flex items-center col-span-2"><span class="w-3 h-3 bg-black border border-white rounded-sm mr-2"></span> Mobil Polisi (LSPD Siren)</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full bg-slate-900 border-t border-slate-800 px-4 py-2 text-center text-xs text-slate-500 z-20">
+        Grand Theft Auto V Themed Traffic Light Simulation &copy; Los Santos Department of Transportation.
+    </footer>
+
+    <!-- JavaScript Canvas & Simulation Engine -->
+    <script>
+        // --- CANVAS SETUP & GLOBALS ---
+        const canvas = document.getElementById('trafficCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Internal logical size (Square geometry for 4-way intersection)
+        const SIZE = 800;
+        canvas.width = SIZE;
+        canvas.height = SIZE;
+
+        // Road Geometry Definitions
+        const ROAD_WIDTH = 220;
+        const LANE_WIDTH = ROAD_WIDTH / 4; // 2 lanes each direction
+        const CENTER = SIZE / 2;
+        const ROAD_MIN = CENTER - ROAD_WIDTH / 2;
+        const ROAD_MAX = CENTER + ROAD_WIDTH / 2;
+
+        // Simulation State
+        let controlMode = 'auto'; // 'auto' | 'manual'
+        let currentPhase = 'NS'; // 'NS' (North-South Green) | 'EW' (East-West Green)
+        let signalState = {
+            NS: 'green', // 'green' | 'yellow' | 'red'
+            EW: 'red'
+        };
+        let phaseTimer = 0;
+        let autoPhaseDuration = 6; // seconds
+        let vehicleSpeedMultiplier = 1.5;
+        let spawnRateLevel = 4; // 1 (low) to 5 (extreme chaos)
+        let chaosMode = false;
+        let lastTimestamp = 0;
+        let vehicleIdCounter = 0;
+
+        // Radio Stations Mock
+        const radioStations = ["NON-STOP-POP FM", "RADIO LOS SANTOS", "WEST COAST CLASSICS", "MIRROR PARK", "FLYLO FM"];
+        let currentRadioIdx = 0;
+
+        // Audio Effects using Web Audio API (Synthetic sound effects)
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        function playHonkSound() {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(350, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            } catch (e) {}
+        }
+
+        // Vehicles collection
+        let vehicles = [];
+        let visualHonks = []; // Floating honk text effects
+
+        // Vehicle Types Configuration
+        const VEHICLE_TYPES = {
+            sedan: { width: 24, length: 44, color: '#3b82f6', maxSpeed: 2.2, accel: 0.08, name: 'Muscle Car' },
+            taxi: { width: 24, length: 44, color: '#eab308', maxSpeed: 2.0, accel: 0.07, name: 'Taxi' },
+            sports: { width: 22, length: 42, color: '#ef4444', maxSpeed: 2.8, accel: 0.12, name: 'Supercar' },
+            truck: { width: 28, length: 65, color: '#059669', maxSpeed: 1.5, accel: 0.04, name: 'Truck' },
+            police: { width: 24, length: 46, color: '#09090b', maxSpeed: 3.2, accel: 0.15, name: 'LSPD Cruiser', isPolice: true }
+        };
+
+        // Directions: N (North bound), S (South bound), E (East bound), W (West bound)
+        // Entry points and target trajectories
+        const DIRECTIONS = ['N', 'S', 'E', 'W'];
+
+        class Vehicle {
+            constructor(dir, typeKey = null) {
+                this.id = ++vehicleIdCounter;
+                this.dir = dir; // Spawn origin direction ('N', 'S', 'E', 'W')
+                
+                if (!typeKey) {
+                    const keys = ['sedan', 'taxi', 'sports', 'truck'];
+                    typeKey = keys[Math.floor(Math.random() * keys.length)];
+                }
+                
+                const type = VEHICLE_TYPES[typeKey];
+                this.typeKey = typeKey;
+                this.width = type.width;
+                this.length = type.length;
+                this.color = type.color;
+                this.baseMaxSpeed = type.maxSpeed;
+                this.accel = type.accel;
+                this.isPolice = type.isPolice || false;
+
+                this.speed = 0;
+                this.stopped = false;
+                this.honkTimer = 0;
+
+                // Position calculation based on lane direction
+                this.initPosition();
+            }
+
+            initPosition() {
+                // Lane offsets relative to center
+                // Right-hand drive rules for standard intersection
+                const laneOffset = ROAD_WIDTH / 4; 
+
+                if (this.dir === 'S') { // Spawns top, driving SOUTH
+                    this.x = CENTER - laneOffset;
+                    this.y = -this.length - Math.random() * 80;
+                    this.angle = Math.PI / 2;
+                } else if (this.dir === 'N') { // Spawns bottom, driving NORTH
+                    this.x = CENTER + laneOffset;
+                    this.y = SIZE + this.length + Math.random() * 80;
+                    this.angle = -Math.PI / 2;
+                } else if (this.dir === 'E') { // Spawns left, driving EAST
+                    this.x = -this.length - Math.random() * 80;
+                    this.y = CENTER + laneOffset;
+                    this.angle = 0;
+                } else if (this.dir === 'W') { // Spawns right, driving WEST
+                    this.x = SIZE + this.length + Math.random() * 80;
+                    this.y = CENTER - laneOffset;
+                    this.angle = Math.PI;
+                }
+            }
+
+            getStopLineDistance() {
+                // Returns distance to the stop line of current lane
+                if (this.dir === 'S') return ROAD_MIN - (this.y + this.length / 2);
+                if (this.dir === 'N') return (this.y - this.length / 2) - ROAD_MAX;
+                if (this.dir === 'E') return ROAD_MIN - (this.x + this.length / 2);
+                if (this.dir === 'W') return (this.x - this.length / 2) - ROAD_MAX;
+                return 999;
+            }
+
+            hasPassedIntersection() {
+                if (this.dir === 'S') return this.y > ROAD_MAX;
+                if (this.dir === 'N') return this.y < ROAD_MIN;
+                if (this.dir === 'E') return this.x > ROAD_MAX;
+                if (this.dir === 'W') return this.x < ROAD_MIN;
+                return true;
+            }
+
+            update(delta) {
+                const targetMaxSpeed = this.baseMaxSpeed * vehicleSpeedMultiplier * (chaosMode ? 1.4 : 1.0);
+                
+                // Get Traffic Light state for current vehicle direction
+                let signal = 'green';
+                if (this.dir === 'N' || this.dir === 'S') {
+                    signal = signalState.NS;
+                } else {
+                    signal = signalState.EW;
+                }
+
+                // Distance to stop line
+                const distToStopLine = this.getStopLineDistance();
+                const pastLine = this.hasPassedIntersection();
+
+                // Check front vehicle collision/distance
+                let distToFrontVehicle = 999;
+                for (let other of vehicles) {
+                    if (other.id === this.id || other.dir !== this.dir) continue;
+
+                    // Check if other is ahead in the same lane
+                    let isAhead = false;
+                    let gap = 999;
+
+                    if (this.dir === 'S' && other.y > this.y) {
+                        isAhead = true;
+                        gap = (other.y - other.length / 2) - (this.y + this.length / 2);
+                    } else if (this.dir === 'N' && other.y < this.y) {
+                        isAhead = true;
+                        gap = (this.y - this.length / 2) - (other.y + other.length / 2);
+                    } else if (this.dir === 'E' && other.x > this.x) {
+                        isAhead = true;
+                        gap = (other.x - other.length / 2) - (this.x + this.length / 2);
+                    } else if (this.dir === 'W' && other.x < this.x) {
+                        isAhead = true;
+                        gap = (this.x - this.length / 2) - (other.x + other.length / 2);
+                    }
+
+                    if (isAhead && gap < distToFrontVehicle) {
+                        distToFrontVehicle = gap;
+                    }
+                }
+
+                // Decision logic: Stop for Red light or car in front
+                let shouldStop = false;
+
+                // Stop line logic
+                if (!pastLine && distToStopLine > 0 && distToStopLine < 120) {
+                    if (signal === 'red') {
+                        // In Chaos mode, 15% of cars ignore red light
+                        if (!chaosMode || (this.id % 7 !== 0 && !this.isPolice)) {
+                            shouldStop = true;
+                        }
+                    } else if (signal === 'yellow' && distToStopLine > 40) {
+                        shouldStop = true;
+                    }
+                }
+
+                // Safe distance logic behind front vehicle
+                const safeGap = 18;
+                if (distToFrontVehicle < safeGap) {
+                    shouldStop = true;
+                }
+
+                // Adjust Speed
+                if (shouldStop) {
+                    if (distToFrontVehicle < safeGap) {
+                        this.speed = Math.max(0, this.speed - this.accel * 2.5);
+                    } else {
+                        this.speed = Math.max(0, this.speed - this.accel * 1.5);
+                    }
+                } else {
+                    this.speed = Math.min(targetMaxSpeed, this.speed + this.accel);
+                }
+
+                // Honk Logic (If waiting in traffic queue for too long)
+                if (this.speed < 0.1 && distToFrontVehicle < safeGap + 10) {
+                    this.honkTimer += delta;
+                    if (this.honkTimer > 3.0 && Math.random() < 0.02) {
+                        this.triggerHonk();
+                        this.honkTimer = 0;
+                    }
+                } else {
+                    this.honkTimer = 0;
+                }
+
+                // Move Vehicle forward based on heading angle
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+            }
+
+            triggerHonk() {
+                visualHonks.push({
+                    x: this.x,
+                    y: this.y - 15,
+                    text: Math.random() > 0.5 ? 'BEEP!' : 'HONK!',
+                    life: 1.0
+                });
+                if (Math.random() < 0.3) playHonkSound();
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // Vehicle Shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.fillRect(-this.length / 2 + 3, -this.width / 2 + 3, this.length, this.width);
+
+                // Body Chassis
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.roundRect(-this.length / 2, -this.width / 2, this.length, this.width, 4);
+                ctx.fill();
+
+                // Roof / Windshield
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-this.length * 0.1, -this.width * 0.35, this.length * 0.4, this.width * 0.7);
+
+                // Headlights (Front)
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(this.length / 2 - 2, -this.width / 2 + 2, 3, 4);
+                ctx.fillRect(this.length / 2 - 2, this.width / 2 - 6, 3, 4);
+
+                // Headlight Glow (Night vibe)
+                ctx.fillStyle = 'rgba(254, 240, 138, 0.15)';
+                ctx.beginPath();
+                ctx.moveTo(this.length / 2, -this.width / 2);
+                ctx.lineTo(this.length / 2 + 40, -this.width / 2 - 12);
+                ctx.lineTo(this.length / 2 + 40, this.width / 2 + 12);
+                ctx.lineTo(this.length / 2, this.width / 2);
+                ctx.closePath();
+                ctx.fill();
+
+                // Taillights (Rear)
+                ctx.fillStyle = this.speed < 0.2 ? '#ef4444' : '#991b1b';
+                ctx.fillRect(-this.length / 2, -this.width / 2 + 2, 2, 4);
+                ctx.fillRect(-this.length / 2, this.width / 2 - 6, 2, 4);
+
+                // Emergency Light Bar for Police Cars
+                if (this.isPolice) {
+                    const flash = Math.floor(Date.now() / 150) % 2 === 0;
+                    ctx.fillStyle = flash ? '#ef4444' : '#3b82f6';
+                    ctx.fillRect(-2, -this.width / 2 + 1, 6, this.width - 2);
+                }
+
+                ctx.restore();
+            }
+
+            isOutOfBounds() {
+                const margin = 120;
+                return (this.x < -margin || this.x > SIZE + margin || this.y < -margin || this.y > SIZE + margin);
+            }
+        }
+
+        // --- DRAW ROAD INTERSECTION ---
+        function drawRoads() {
+            // Asphalt Background
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, SIZE, SIZE);
+
+            // Grass Terrain (4 corners)
+            ctx.fillStyle = '#0f172a';
+            // Top-Left
+            ctx.fillRect(0, 0, ROAD_MIN, ROAD_MIN);
+            // Top-Right
+            ctx.fillRect(ROAD_MAX, 0, SIZE - ROAD_MAX, ROAD_MIN);
+            // Bottom-Left
+            ctx.fillRect(0, ROAD_MAX, ROAD_MIN, SIZE - ROAD_MAX);
+            // Bottom-Right
+            ctx.fillRect(ROAD_MAX, ROAD_MAX, SIZE - ROAD_MAX, SIZE - ROAD_MAX);
+
+            // Sidewalk Curbs
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(ROAD_MIN - 8, 0, 8, ROAD_MIN);
+            ctx.fillRect(ROAD_MAX, 0, 8, ROAD_MIN);
+            ctx.fillRect(ROAD_MIN - 8, ROAD_MAX, 8, SIZE - ROAD_MAX);
+            ctx.fillRect(ROAD_MAX, ROAD_MAX, 8, SIZE - ROAD_MAX);
+
+            ctx.fillRect(0, ROAD_MIN - 8, ROAD_MIN, 8);
+            ctx.fillRect(0, ROAD_MAX, ROAD_MIN, 8);
+            ctx.fillRect(ROAD_MAX, ROAD_MIN - 8, SIZE - ROAD_MAX, 8);
+            ctx.fillRect(ROAD_MAX, ROAD_MAX, SIZE - ROAD_MAX, 8);
+
+            // Road Markings (Yellow double lines in center)
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 3;
+
+            // North/South center divider
+            ctx.beginPath();
+            ctx.setLineDash([]);
+            ctx.moveTo(CENTER, 0); ctx.lineTo(CENTER, ROAD_MIN);
+            ctx.moveTo(CENTER, ROAD_MAX); ctx.lineTo(CENTER, SIZE);
+            // East/West center divider
+            ctx.moveTo(0, CENTER); ctx.lineTo(ROAD_MIN, CENTER);
+            ctx.moveTo(ROAD_MAX, CENTER); ctx.lineTo(SIZE, CENTER);
+            ctx.stroke();
+
+            // Lane Dividers (Dashed white lines)
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([15, 15]);
+
+            const laneOffset = ROAD_WIDTH / 4;
+            // North-South lanes
+            ctx.beginPath();
+            ctx.moveTo(CENTER - laneOffset, 0); ctx.lineTo(CENTER - laneOffset, ROAD_MIN);
+            ctx.moveTo(CENTER + laneOffset, 0); ctx.lineTo(CENTER + laneOffset, ROAD_MIN);
+            ctx.moveTo(CENTER - laneOffset, ROAD_MAX); ctx.lineTo(CENTER - laneOffset, SIZE);
+            ctx.moveTo(CENTER + laneOffset, ROAD_MAX); ctx.lineTo(CENTER + laneOffset, SIZE);
+
+            // East-West lanes
+            ctx.moveTo(0, CENTER - laneOffset); ctx.lineTo(ROAD_MIN, CENTER - laneOffset);
+            ctx.moveTo(0, CENTER + laneOffset); ctx.lineTo(ROAD_MIN, CENTER + laneOffset);
+            ctx.moveTo(ROAD_MAX, CENTER - laneOffset); ctx.lineTo(SIZE, CENTER - laneOffset);
+            ctx.moveTo(ROAD_MAX, CENTER + laneOffset); ctx.lineTo(SIZE, CENTER + laneOffset);
+            ctx.stroke();
+
+            // Reset Line Dash
+            ctx.setLineDash([]);
+
+            // Zebra Crossings / Stop Lines
+            ctx.fillStyle = '#ffffff';
+            // Stop lines (thick solid bar)
+            ctx.fillRect(CENTER, ROAD_MIN - 6, ROAD_WIDTH / 2, 6); // North lane stop line
+            ctx.fillRect(ROAD_MIN, ROAD_MAX, ROAD_WIDTH / 2, 6);   // South lane stop line
+            ctx.fillRect(ROAD_MIN - 6, ROAD_MIN, 6, ROAD_WIDTH / 2); // West lane stop line
+            ctx.fillRect(ROAD_MAX, CENTER, 6, ROAD_WIDTH / 2);      // East lane stop line
+        }
+
+        // --- DRAW TRAFFIC LIGHT HOUSING & BULBS ---
+        function drawTrafficLights() {
+            const lightConfigs = [
+                { x: ROAD_MAX + 15, y: ROAD_MIN - 35, state: signalState.NS, dir: 'S' }, // North Light (controls Southbound)
+                { x: ROAD_MIN - 45, y: ROAD_MAX + 15, state: signalState.NS, dir: 'N' }, // South Light (controls Northbound)
+                { x: ROAD_MIN - 35, y: ROAD_MIN - 45, state: signalState.EW, dir: 'E' }, // West Light (controls Eastbound)
+                { x: ROAD_MAX + 15, y: ROAD_MAX + 15, state: signalState.EW, dir: 'W' }  // East Light (controls Westbound)
+            ];
+
+            lightConfigs.forEach(cfg => {
+                // Box background
+                ctx.fillStyle = '#090d16';
+                ctx.strokeStyle = '#eab308';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(cfg.x, cfg.y, 30, 60, 4);
+                ctx.fill();
+                ctx.stroke();
+
+                // Red Bulb
+                ctx.fillStyle = (cfg.state === 'red') ? '#ef4444' : '#450a0a';
+                ctx.beginPath(); ctx.arc(cfg.x + 15, cfg.y + 12, 7, 0, Math.PI * 2); ctx.fill();
+                if (cfg.state === 'red') {
+                    ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 10;
+                    ctx.beginPath(); ctx.arc(cfg.x + 15, cfg.y + 12, 7, 0, Math.PI * 2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+
+                // Yellow Bulb
+                ctx.fillStyle = (cfg.state === 'yellow') ? '#eab308' : '#422006';
+                ctx.beginPath(); ctx.arc(cfg.x + 15, cfg.y + 30, 7, 0, Math.PI * 2); ctx.fill();
+                if (cfg.state === 'yellow') {
+                    ctx.shadowColor = '#eab308'; ctx.shadowBlur = 10;
+                    ctx.beginPath(); ctx.arc(cfg.x + 15, cfg.y + 30, 7, 0, Math.PI * 2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+
+                // Green Bulb
+                ctx.fillStyle = (cfg.state === 'green') ? '#10b981' : '#064e3b';
+                ctx.beginPath(); ctx.arc(cfg.x + 15, cfg.y + 48, 7, 0, Math.PI * 2); ctx.fill();
+                if (cfg.state === 'green') {
+                    ctx.shadowColor = '#10b981'; ctx.shadowBlur = 10;
+                    ctx.beginPath(); ctx.arc(cfg.x + 15, cfg.y + 48, 7, 0, Math.PI * 2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            });
+        }
+
+        // --- DRAW VISUAL HONK TEXTS ---
+        function drawHonks(delta) {
+            for (let i = visualHonks.length - 1; i >= 0; i--) {
+                const h = visualHonks[i];
+                h.life -= delta * 1.5;
+                h.y -= delta * 15;
+
+                ctx.font = '900 12px "Chakra Petch", sans-serif';
+                ctx.fillStyle = `rgba(234, 179, 8, ${Math.max(0, h.life)})`;
+                ctx.fillText(h.text, h.x - 15, h.y);
+
+                if (h.life <= 0) {
+                    visualHonks.splice(i, 1);
+                }
+            }
+        }
+
+        // --- TRAFFIC SPAWNER ENGINE ---
+        let spawnAcc = 0;
+        function handleSpawning(delta) {
+            // Spawn interval depends on intensity slider (1..5)
+            // 5 = high rate (~0.4s), 1 = low rate (~2.5s)
+            const spawnInterval = 2.8 - (spawnRateLevel * 0.45);
+            spawnAcc += delta;
+
+            if (spawnAcc >= spawnInterval) {
+                spawnAcc = 0;
+
+                // Pick random direction with heavy lane filling
+                const dir = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+
+                // Check if spawn lane is clear to avoid overlapping spawn
+                let blocked = false;
+                for (let v of vehicles) {
+                    if (v.dir === dir) {
+                        if (dir === 'S' && v.y < 40) blocked = true;
+                        if (dir === 'N' && v.y > SIZE - 40) blocked = true;
+                        if (dir === 'E' && v.x < 40) blocked = true;
+                        if (dir === 'W' && v.x > SIZE - 40) blocked = true;
+                    }
+                }
+
+                if (!blocked && vehicles.length < 45) {
+                    // Chaos mode spawns police cars frequently
+                    const type = (chaosMode && Math.random() < 0.4) ? 'police' : null;
+                    vehicles.push(new Vehicle(dir, type));
+                }
+            }
+        }
+
+        // --- AUTOMATIC TRAFFIC LIGHT STATE MACHINE ---
+        function updateTrafficLights(delta) {
+            if (controlMode !== 'auto') return;
+
+            phaseTimer += delta;
+            const greenDuration = autoPhaseDuration;
+            const yellowDuration = 2.0;
+            const cycleTotal = greenDuration + yellowDuration;
+
+            if (currentPhase === 'NS') {
+                if (phaseTimer < greenDuration) {
+                    signalState.NS = 'green';
+                    signalState.EW = 'red';
+                } else if (phaseTimer < cycleTotal) {
+                    signalState.NS = 'yellow';
+                    signalState.EW = 'red';
+                } else {
+                    currentPhase = 'EW';
+                    phaseTimer = 0;
+                }
+            } else {
+                if (phaseTimer < greenDuration) {
+                    signalState.EW = 'green';
+                    signalState.NS = 'red';
+                } else if (phaseTimer < cycleTotal) {
+                    signalState.EW = 'yellow';
+                    signalState.NS = 'red';
+                } else {
+                    currentPhase = 'NS';
+                    phaseTimer = 0;
+                }
+            }
+
+            updateUIHUD();
+        }
+
+        // --- UI & HUD UPDATER ---
+        function updateUIHUD() {
+            // Update Phase Indicator Bar
+            const currentPhaseText = document.getElementById('current-phase-text');
+            const progress = document.getElementById('phase-progress');
+            
+            if (controlMode === 'auto') {
+                const total = autoPhaseDuration + 2.0;
+                const remPct = Math.max(0, 100 - (phaseTimer / total) * 100);
+                progress.style.width = remPct + '%';
+
+                if (currentPhase === 'NS') {
+                    currentPhaseText.innerText = `UTARA - SELATAN (${signalState.NS.toUpperCase()})`;
+                    currentPhaseText.className = signalState.NS === 'green' ? 'gta-font text-emerald-400 font-bold text-sm tracking-wider uppercase' : 'gta-font text-yellow-400 font-bold text-sm tracking-wider uppercase';
+                } else {
+                    currentPhaseText.innerText = `TIMUR - BARAT (${signalState.EW.toUpperCase()})`;
+                    currentPhaseText.className = signalState.EW === 'green' ? 'gta-font text-emerald-400 font-bold text-sm tracking-wider uppercase' : 'gta-font text-yellow-400 font-bold text-sm tracking-wider uppercase';
+                }
+            } else {
+                currentPhaseText.innerText = "KONTROL MANUAL AKTIF";
+                currentPhaseText.className = "gta-font text-cyan-400 font-bold text-sm tracking-wider uppercase";
+                progress.style.width = "100%";
+            }
+
+            // Update Vehicle Counter HUD
+            document.getElementById('vehicle-count').innerText = vehicles.length;
+
+            // In-game Clock Clock Tick
+            const now = new Date();
+            const hrs = String(now.getHours()).padStart(2, '0');
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('game-time').innerText = `${hrs}:${mins}`;
+        }
+
+        // --- USER INTERACTION CONTROLS ---
+        function setControlMode(mode) {
+            initAudio();
+            controlMode = mode;
+            const btnAuto = document.getElementById('btn-mode-auto');
+            const btnManual = document.getElementById('btn-mode-manual');
+            const badge = document.getElementById('mode-badge');
+            const manualBox = document.getElementById('manual-controls');
+
+            if (mode === 'auto') {
+                btnAuto.className = "py-2 text-xs font-bold rounded bg-yellow-500 text-slate-950 transition-all shadow";
+                btnManual.className = "py-2 text-xs font-bold rounded text-slate-400 hover:text-white transition-all";
+                badge.innerText = "OTOMATIS";
+                badge.className = "text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/50";
+                manualBox.classList.add('opacity-50', 'pointer-events-none');
+                phaseTimer = 0;
+            } else {
+                btnManual.className = "py-2 text-xs font-bold rounded bg-yellow-500 text-slate-950 transition-all shadow";
+                btnAuto.className = "py-2 text-xs font-bold rounded text-slate-400 hover:text-white transition-all";
+                badge.innerText = "MANUAL";
+                badge.className = "text-xs px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-500/50";
+                manualBox.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        function setManualSignal(directionGroup, state) {
+            initAudio();
+            if (controlMode !== 'manual') return;
+
+            if (directionGroup === 'NS') {
+                signalState.NS = state;
+            } else {
+                signalState.EW = state;
+            }
+        }
+
+        function toggleChaosMode() {
+            initAudio();
+            chaosMode = !chaosMode;
+            const btn = document.getElementById('btn-chaos');
+            const banner = document.getElementById('chaos-banner');
+            const starsContainer = document.getElementById('wanted-stars');
+
+            if (chaosMode) {
+                btn.className = "w-full py-3 bg-red-600 text-yellow-300 font-black rounded-lg border-2 border-yellow-400 shadow-2xl tracking-wider text-xs uppercase flex items-center justify-center transition-transform active:scale-95 animate-pulse";
+                banner.classList.remove('hidden');
+                starsContainer.innerHTML = Array(5).fill('<i class="fa-solid fa-star text-yellow-400 animate-bounce"></i>').join('');
+                document.getElementById('traffic-density-status').innerText = "Kepadatan: CHAOS!";
+                document.getElementById('traffic-density-status').className = "text-xs text-red-400 font-bold block";
+
+                // Spawn multiple police cars instantly
+                for (let i = 0; i < 3; i++) {
+                    spawnEmergencyVehicle();
+                }
+            } else {
+                btn.className = "w-full py-3 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black rounded-lg border border-red-400 shadow-lg tracking-wider text-xs uppercase flex items-center justify-center transition-transform active:scale-95";
+                banner.classList.add('hidden');
+                starsContainer.innerHTML = Array(5).fill('<i class="fa-solid fa-star text-slate-700"></i>').join('');
+                document.getElementById('traffic-density-status').innerText = "Kepadatan: Tinggi";
+                document.getElementById('traffic-density-status').className = "text-xs text-slate-400 block";
+            }
+        }
+
+        function spawnEmergencyVehicle() {
+            initAudio();
+            const dirs = ['N', 'S', 'E', 'W'];
+            const randomDir = dirs[Math.floor(Math.random() * dirs.length)];
+            vehicles.push(new Vehicle(randomDir, 'police'));
+        }
+
+        function clearAllVehicles() {
+            initAudio();
+            vehicles = [];
+        }
+
+        function nextRadioStation() {
+            initAudio();
+            currentRadioIdx = (currentRadioIdx + 1) % radioStations.length;
+            document.getElementById('radio-station').innerText = radioStations[currentRadioIdx];
+        }
+
+        // Canvas Click Listener (Spawn Police car at nearest lane)
+        canvas.addEventListener('click', (e) => {
+            initAudio();
+            spawnEmergencyVehicle();
+        });
+
+        // --- SLIDERS BINDING ---
+        document.getElementById('slider-spawn').addEventListener('input', (e) => {
+            spawnRateLevel = parseInt(e.target.value);
+            const labels = ['Sangat Lengang', 'Sedang', 'Padat', 'Sangat Padat', 'Macet Total'];
+            document.getElementById('spawn-rate-val').innerText = labels[spawnRateLevel - 1];
+        });
+
+        document.getElementById('slider-timer').addEventListener('input', (e) => {
+            autoPhaseDuration = parseInt(e.target.value);
+            document.getElementById('timer-val').innerText = `${autoPhaseDuration}s`;
+        });
+
+        document.getElementById('slider-speed').addEventListener('input', (e) => {
+            vehicleSpeedMultiplier = parseFloat(e.target.value);
+            const labels = { 1: 'Pelan', 1.5: 'Normal', 2: 'Cepat', 2.5: 'Ngebut', 3: 'GTA Racing' };
+            document.getElementById('speed-val').innerText = labels[vehicleSpeedMultiplier] || `${vehicleSpeedMultiplier}x`;
+        });
+
+        // --- MAIN SIMULATION LOOP ---
+        function loop(timestamp) {
+            if (!lastTimestamp) lastTimestamp = timestamp;
+            const delta = Math.min((timestamp - lastTimestamp) / 1000, 0.1); // Cap delta to prevent teleports
+            lastTimestamp = timestamp;
+
+            // Update Simulation Logic
+            updateTrafficLights(delta);
+            handleSpawning(delta);
+
+            // Update Vehicles
+            for (let i = vehicles.length - 1; i >= 0; i--) {
+                const v = vehicles[i];
+                v.update(delta);
+
+                if (v.isOutOfBounds()) {
+                    vehicles.splice(i, 1);
+                }
+            }
+
+            // Render Frame
+            ctx.clearRect(0, 0, SIZE, SIZE);
+            drawRoads();
+            
+            // Draw Vehicles
+            vehicles.forEach(v => v.draw(ctx));
+
+            // Draw Traffic Lights
+            drawTrafficLights();
+
+            // Draw Visual Effects (Honks)
+            drawHonks(delta);
+
+            requestAnimationFrame(loop);
+        }
+
+        // Start Loop on Window Load
+        window.onload = () => {
+            requestAnimationFrame(loop);
+        };
+    </script>
+</body>
+</html>
